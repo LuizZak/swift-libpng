@@ -7,6 +7,9 @@ let package = Package(
         .library(
             name: "LibPNG",
             targets: ["LibPNG"]),
+        .library(
+            name: "CLibPNG",
+            targets: ["CLibPNG"]),
     ],
     targets: [
         .target(
