@@ -16,6 +16,16 @@ class LibPNGTests: XCTestCase {
         XCTAssert(pngFile.rows.allSatisfy { $0.count == Int(pngFile.rowLength) })
     }
     
+    func testWritePngData() throws {
+        let path = "\(pathToResources())/bl-getting-started-1.png"
+        let pngFile = try readPngFile(path)
+        
+        let data = try writePngData(file: pngFile)
+        let fromData = try readPngFromData(data)
+        
+        XCTAssertEqual(pngFile, fromData)
+    }
+    
     func testFromRgba() {
         let pngFile = PNGFile.fromRgba([1, 2, 3, 4], width: 2, height: 2)
         

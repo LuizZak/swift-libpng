@@ -1,6 +1,7 @@
 #if os(Linux)
 import Glibc
 #endif
+import Foundation
 import CLibPNG
 
 public struct PNGFile {
@@ -17,8 +18,6 @@ extension PNGFile: Equatable {
 }
 
 public func readPngFile(_ filename: String) throws -> PNGFile {
-    var file = PNGFile()
-    
     guard let fp = fopen(filename, "rb") else {
         throw PNGError.couldNotOpenFile
     }
@@ -38,6 +37,57 @@ public func readPngFile(_ filename: String) throws -> PNGFile {
     
     png_read_info(png, info)
     
+    var file = PNGFile()
+    
+    readPng(file: &file, png: png, info: info)
+    
+    return file
+}
+
+public func readPngFromData(_ data: Data) throws -> PNGFile {
+    guard let png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nil, nil, nil) else {
+        throw PNGError.invalidPngFile
+    }
+    
+    guard let info = png_create_info_struct(png) else {
+        throw PNGError.invalidPngFile
+    }
+    
+    let stream = InputStream(data: data)
+    stream.open()
+    
+    png_set_read_fn(png, Unmanaged.passUnretained(stream).toOpaque()) { png, bytes, length in
+        guard let png = png else {
+            return
+        }
+        guard let bytes = bytes else {
+            return
+        }
+        guard let io = png_get_io_ptr(png) else {
+            return
+        }
+        
+        let stream = Unmanaged<InputStream>.fromOpaque(io).takeUnretainedValue()
+        
+        if stream.read(bytes, maxLength: length) == -1 {
+            if let error = stream.streamError {
+                png_error(png, error.localizedDescription)
+            } else {
+                png_error(png, "Unknown error reading stream")
+            }
+        }
+    }
+    
+    png_read_info(png, info)
+    
+    var file = PNGFile()
+    
+    readPng(file: &file, png: png, info: info)
+    
+    return file
+}
+
+private func readPng(file: inout PNGFile, png: png_structp, info: png_infop) {
     file.width     = Int(png_get_image_width(png, info))
     file.height    = Int(png_get_image_height(png, info))
     file.colorType = png_get_color_type(png, info)
@@ -102,8 +152,14 @@ public func readPngFile(_ filename: String) throws -> PNGFile {
         let buffer = UnsafeBufferPointer(start: rowPointers[y], count: rowBytes)
         file.rows.append(Array(buffer))
     }
+}
+
+public func writePngData(file: PNGFile) throws -> Data {
+    let data = NSMutableData()
     
-    return file
+    try writePng(file: file, to: data)
+    
+    return data as Data
 }
 
 public func writePngFile(file: PNGFile, filename: String) throws {
@@ -114,6 +170,10 @@ public func writePngFile(file: PNGFile, filename: String) throws {
         fclose(fp)
     }
     
+    try writePng(file: file, to: fp)
+}
+
+private func writePng(file: PNGFile, to fp: UnsafeMutablePointer<FILE>) throws {
     guard let png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nil, nil, nil) else {
         throw PNGError.invalidPngFile
     }
@@ -124,6 +184,44 @@ public func writePngFile(file: PNGFile, filename: String) throws {
     
     png_init_io(png, fp)
     
+    writePng(file: file, png: png, info: info)
+}
+
+private func writePng(file: PNGFile, to data: NSMutableData) throws {
+    guard let png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nil, nil, nil) else {
+        throw PNGError.invalidPngFile
+    }
+    
+    guard let info = png_create_info_struct(png) else {
+        throw PNGError.invalidPngFile
+    }
+    
+    let stream = OutputStream(toMemory: ())
+    stream.open()
+    
+    png_set_write_fn(png, Unmanaged.passUnretained(stream).toOpaque()) { png, bytes, size in
+        guard let bytes = bytes else { return }
+        guard let dataPtr = png_get_io_ptr(png) else {
+            return
+        }
+        
+        let stream = Unmanaged<OutputStream>.fromOpaque(dataPtr).takeUnretainedValue()
+        
+        stream.write(bytes, maxLength: size)
+    } _: { _ in
+        
+    }
+    
+    writePng(file: file, png: png, info: info)
+    
+    guard let outputData = stream.property(forKey: Stream.PropertyKey.dataWrittenToMemoryStreamKey) as? Data else {
+        throw PNGError.memoryError
+    }
+    
+    data.append(outputData)
+}
+
+private func writePng(file: PNGFile, png: png_structp, info: png_infop) {
     // Output is 8bit depth, RGBA format.
     png_set_IHDR(
         png,
@@ -161,7 +259,16 @@ public func writePngFile(file: PNGFile, filename: String) throws {
     png_write_end(png, nil)
 }
 
+private func _writePng(_ png: png_structp, _ bytes: png_bytep, _ length: png_size_t) {
+    
+}
+
+private func _flushPng(_ png: png_structp) {
+    // No-op
+}
+
 public enum PNGError: Error {
     case couldNotOpenFile
     case invalidPngFile
+    case memoryError
 }
