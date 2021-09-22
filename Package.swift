@@ -1,4 +1,4 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.4
 import PackageDescription
 
 let package = Package(
@@ -22,6 +22,9 @@ let package = Package(
             dependencies: ["CLibPNG"]),
         .testTarget(
             name: "LibPNGTests",
-            dependencies: ["LibPNG"]),
+            dependencies: ["LibPNG"],
+            exclude: [
+                "TestResources/bl-getting-started-1.png"
+            ]),
     ]
 )
