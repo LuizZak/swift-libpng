@@ -12,11 +12,11 @@ let package = Package(
             targets: ["CLibPNG"]),
     ],
     targets: [
-        .target(
+        .systemLibrary(
             name: "CLibPNG",
-            linkerSettings: [
-                .linkedLibrary("z")
-            ]),
+            pkgConfig: "libpng",
+            providers: [.apt(["libpng-dev"]), .brew(["libpng"])]
+        ),
         .target(
             name: "LibPNG",
             dependencies: ["CLibPNG"]),

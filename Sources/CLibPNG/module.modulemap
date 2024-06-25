@@ -1,0 +1,6 @@
+module CLibPNG [system] {
+    umbrella header "libpng.h"
+    link "z"
+    link "png"
+    export *
+}
